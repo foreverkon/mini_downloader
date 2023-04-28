@@ -140,7 +140,6 @@ impl Chunks {
         }
     }
 
-
     /// download all chunk and then save them
     pub async fn download_then_save(
         self,
@@ -200,7 +199,6 @@ impl Chunks {
             total: self.total,
         })
     }
-
 
     async fn verify(&self, f: Arc<Mutex<File>>) -> anyhow::Result<()> {
         let file = f.lock().await;

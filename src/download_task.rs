@@ -1,16 +1,16 @@
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct DownloadTask {
     pub url: String,
-    pub filename: String,
+    pub filename: PathBuf,
 }
 
 impl DownloadTask {
     pub fn new(url: &str, filename: &str) -> Self {
         Self {
             url: url.to_string(),
-            filename: filename.to_string(),
+            filename: PathBuf::from(filename),
         }
     }
 }
@@ -29,7 +29,7 @@ impl FromStr for DownloadTask {
         }
         Ok(DownloadTask {
             url: s.to_string(),
-            filename: filename.to_string(),
+            filename: PathBuf::from(filename),
         })
     }
 }
