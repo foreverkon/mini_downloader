@@ -28,6 +28,7 @@ pub struct ChunkVec {
 }
 
 impl ChunkVec {
+    /// save all chunk to file
     pub async fn save(self, f: Arc<Mutex<File>>) -> anyhow::Result<()> {
         let mut tasks = Vec::new();
         for chunk in self.chunks.into_iter() {
@@ -60,7 +61,7 @@ impl ChunkVec {
         for chunk in self.chunks.windows(2) {
             let c1 = &chunk[0];
             let c2 = &chunk[1];
-            if c1.start+c1.chunk_size != c2.start {
+            if c1.start + c1.chunk_size != c2.start {
                 anyhow::bail!("Incomplete chunk")
             }
         }
@@ -69,6 +70,7 @@ impl ChunkVec {
 }
 
 impl Chunk {
+    /// download one chunk from the url
     pub async fn download(
         mut self,
         client: &ClientWithMiddleware,
@@ -94,6 +96,7 @@ impl Chunk {
         anyhow::Ok(self)
     }
 
+    /// save one chunk to file
     pub async fn save(&self, f: Arc<Mutex<File>>) -> anyhow::Result<()> {
         let mut file = f.lock().await;
         file.seek(std::io::SeekFrom::Start(self.start as u64))
@@ -102,6 +105,7 @@ impl Chunk {
         Ok(())
     }
 
+    /// download and then save one chunk
     pub async fn download_and_save(
         self,
         client: &ClientWithMiddleware,
@@ -136,6 +140,8 @@ impl Chunks {
         }
     }
 
+
+    /// download all chunk and then save them
     pub async fn download_then_save(
         self,
         client: &ClientWithMiddleware,
@@ -148,6 +154,7 @@ impl Chunks {
         Ok(())
     }
 
+    /// download and save concurrently
     pub async fn download_and_save(
         self,
         client: &ClientWithMiddleware,
@@ -170,6 +177,7 @@ impl Chunks {
         Ok(())
     }
 
+    /// download all chunks
     pub async fn download(
         self,
         client: &ClientWithMiddleware,
@@ -187,8 +195,12 @@ impl Chunks {
         for task in tasks {
             chunks.push(task.await??);
         }
-        Ok(ChunkVec { chunks, total: self.total })
+        Ok(ChunkVec {
+            chunks,
+            total: self.total,
+        })
     }
+
 
     async fn verify(&self, f: Arc<Mutex<File>>) -> anyhow::Result<()> {
         let file = f.lock().await;
@@ -196,11 +208,7 @@ impl Chunks {
         let metadata = file.metadata().await?;
         let size = metadata.len() as usize;
         if size != self.total {
-            anyhow::bail!(
-                "Expected {} bytes, got {}",
-                self.total,
-                metadata.len()
-            );
+            anyhow::bail!("Expected {} bytes, got {}", self.total, metadata.len());
         }
         anyhow::Ok(())
     }
