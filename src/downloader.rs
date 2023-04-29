@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use tokio::sync::Mutex;
 
-use crate::chunk::Chunks;
+use crate::chunks::Chunks;
 use crate::download_task::DownloadTask;
 
 pub enum DownloadPolicy {
@@ -48,26 +49,67 @@ impl Downloader {
         T: IntoIterator<Item = DownloadTask>,
     {
         let mut futures: Vec<tokio::task::JoinHandle<anyhow::Result<()>>> = Vec::new();
+        let m = MultiProgress::new();
+        let style =
+            ProgressStyle::with_template("{elapsed:>3} [{bar:20.cyan/blue}] {percent:>3}% {msg:<}")
+                .unwrap()
+                .progress_chars("##-");
 
         for DownloadTask { url, filename } in tasks {
             let client = self.client.clone();
             let workers = self.workers;
-            let path = self.dir.join(filename);
+            let path = self.dir.join(&filename);
+
+            let pb = m.add(ProgressBar::new(u64::MAX));
+            pb.set_style(style.clone());
+            pb.set_message(format!("{} ..", filename.display()));
 
             let task = match self.policy {
                 DownloadPolicy::DownloadThenSave => tokio::spawn(async move {
-                    let file = tokio::fs::File::create(path).await?;
-                    let file = Arc::new(Mutex::new(file));
-                    let chunks = Chunks::new(&client, &url, workers).await?;
-                    chunks.download_then_save(&client, &url, file).await?;
-                    anyhow::Ok(())
+                    let (chunks, file) = tokio::join!(
+                        Chunks::new(&client, &url, workers),
+                        tokio::fs::File::create(path),
+                    );
+
+                    let chunks = chunks?;
+                    let file = Arc::new(Mutex::new(file?));
+
+                    match chunks
+                        .download_then_save(&client, &url, file, pb.clone())
+                        .await
+                    {
+                        Ok(_) => {
+                            pb.finish_with_message(format!("{} \u{2705}", filename.display()));
+                            anyhow::Ok(())
+                        }
+                        Err(e) => {
+                            pb.finish_with_message(format!("{} \u{274C}", filename.display()));
+                            Err(e)
+                        }
+                    }
                 }),
                 DownloadPolicy::DownloadAndSave => tokio::spawn(async move {
-                    let file = tokio::fs::File::create(path).await?;
-                    let file = Arc::new(Mutex::new(file));
-                    let chunks = Chunks::new(&client, &url, workers).await?;
-                    chunks.download_and_save(&client, &url, file).await?;
-                    anyhow::Ok(())
+                    let (chunks, file) = tokio::join!(
+                        Chunks::new(&client, &url, workers),
+                        tokio::fs::File::create(path),
+                    );
+
+                    let chunks = chunks?;
+                    let file = Arc::new(Mutex::new(file?));
+
+                    match chunks
+                        .download_and_save(&client, &url, file, pb.clone())
+                        .await
+                    {
+                        Ok(_) => {
+                            pb.finish_with_message(format!("{} \u{2705}", filename.display()));
+                            anyhow::Ok(())
+                        }
+                        Err(e) => {
+                            pb.finish_with_message(format!("{} \u{274C}", filename.display()));
+                            Err(e)
+                        }
+                    }
                 }),
             };
 
