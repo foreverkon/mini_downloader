@@ -117,9 +117,16 @@ impl Downloader {
 
             futures.push(task);
         }
+
+        let mut results = Vec::new();
         for future in futures {
-            future.await??;
+            results.push(future.await?);
         }
+
+        for result in results {
+            result?;
+        }
+
         anyhow::Ok(())
     }
 }
