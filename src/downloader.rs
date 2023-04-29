@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::sync::Arc;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -150,8 +150,8 @@ impl DownloaderBuilder {
         self
     }
 
-    pub fn dir(mut self, dir: &str) -> Self {
-        self.dir = Some(PathBuf::from(dir));
+    pub fn dir<P: AsRef<Path>>(mut self, dir: P) -> Self {
+        self.dir = Some(dir.as_ref().to_path_buf());
         self
     }
 
