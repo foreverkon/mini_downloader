@@ -1,4 +1,4 @@
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -50,19 +50,21 @@ impl Downloader {
     {
         let mut futures: Vec<tokio::task::JoinHandle<anyhow::Result<()>>> = Vec::new();
         let m = MultiProgress::new();
-        let style =
-            ProgressStyle::with_template("{elapsed:>3} [{bar:20.cyan/blue}] {percent:>3}% {msg:<}")
-                .unwrap()
-                .progress_chars("##-");
+        let style = ProgressStyle::with_template(
+            "{elapsed:>3} [{bar:16.cyan/blue}] {percent:>3}% {msg:>!16}",
+        )
+        .unwrap()
+        .progress_chars("##-");
 
         for DownloadTask { url, filename } in tasks {
             let client = self.client.clone();
             let workers = self.workers;
             let path = self.dir.join(&filename);
+            path.parent().map(|p| std::fs::create_dir_all(p));
 
             let pb = m.add(ProgressBar::new(u64::MAX));
             pb.set_style(style.clone());
-            pb.set_message(format!("{} ..", filename.display()));
+            pb.set_message(format!("{} ...", filename.display()));
 
             let task = match self.policy {
                 DownloadPolicy::DownloadThenSave => tokio::spawn(async move {
@@ -173,7 +175,10 @@ impl DownloaderBuilder {
     fn build_client(&self, retry: Option<usize>) -> ClientWithMiddleware {
         let retry_policy = ExponentialBackoff::builder()
             .build_with_max_retries(retry.unwrap_or(Self::DEFAULT_RETRY) as u32);
-        let client = reqwest::ClientBuilder::new().build().unwrap();
+        let client = reqwest::ClientBuilder::new()
+            .pool_max_idle_per_host(0)
+            .build()
+            .unwrap();
         ClientBuilder::new(client)
             .with(RetryTransientMiddleware::new_with_policy(retry_policy))
             .build()
