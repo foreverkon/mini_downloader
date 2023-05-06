@@ -60,7 +60,12 @@ impl Chunks {
     ) -> anyhow::Result<()> {
         pb.set_length(self.total as u64);
         let f_clone = f.clone();
-        self.download(client, url).await?.save(f, pb).await?;
+
+        // 下载出错不退出，在 verify 时检查
+        if let Ok(chunk_vec) = self.download(client, url).await {
+            let _ = chunk_vec.save(f, pb).await;
+        }
+
         self.verify(f_clone).await?;
         Ok(())
     }
@@ -87,9 +92,16 @@ impl Chunks {
                 anyhow::Ok(())
             }))
         }
+
+        let mut results = Vec::new();
         for task in tasks {
-            task.await??;
+            results.push(task.await?);
         }
+
+        for result in results {
+            // 下载出错不退出，在 verify 时检查
+        }
+
         self.verify(f).await?;
         Ok(())
     }

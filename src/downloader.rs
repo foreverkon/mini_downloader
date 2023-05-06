@@ -60,7 +60,7 @@ impl Downloader {
             let client = self.client.clone();
             let workers = self.workers;
             let path = self.dir.join(&filename);
-            path.parent().map(|p| std::fs::create_dir_all(p));
+            path.parent().map(std::fs::create_dir_all);
 
             let pb = m.add(ProgressBar::new(u64::MAX));
             pb.set_style(style.clone());
